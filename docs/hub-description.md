@@ -1,16 +1,16 @@
 <!-- Text for the AWTRIX Hub listing. Short descriptions by allowed length:
-~100 chars: Should I take rain gear today? Rain map of your area, start time and a chart for the rest of the day.
-~150 chars: Should I take rain gear today? A rain map of your area, when it starts at your place and a chart until evening. Only shows up when rain is coming.
-~250 chars: Should I take rain gear today? Imber shows a rain map of your area for the next hours, when the rain starts at your place to the quarter hour, and a chart until the end of your day with thunderstorm warnings. It only joins the rotation when rain is coming.
+~100 chars: Should I take rain gear today? Animated rain radar of your area and a chart for the rest of the day.
+~150 chars: Should I take rain gear today? An animated rain radar of your area, when it starts at your place and a chart until evening. Only shows up when rain is coming.
+~250 chars: Should I take rain gear today? Imber plays an animated rain radar of your area, shows when the rain starts at your place to the quarter hour, and a chart until the end of your day with thunderstorm warnings. It only joins the rotation when rain is coming.
 -->
 
 **Should I take rain gear today?** Imber (Latin for "downpour") answers this at a glance: where the rain is around you, when it starts at your place, and how the rest of your day looks. It is not a weather report but a decision aid for the commute and the day.
 
 ### How to read it
 
-- **Left: the rain map.** A round map of the area around you, 20 km in every direction by default. You are in the middle, between the four grey dots. Each cell shows the rain total of the next 3 hours from the start time: black is dry, the brighter the blue, the more rain. A yellow dot marks thunderstorm potential, the brighter, the stronger.
+- **Left: the rain radar.** A round map of the area around you, 20 km in every direction by default. You are in the middle, between the four grey dots. It plays the forecast hour by hour, so you see the rain move across your area: black is dry, the brighter the blue, the more rain. A yellow dot marks thunderstorm potential, the brighter, the stronger.
 - **Top right: the time window.** On the left the time the rain starts at your place (to the quarter hour; if it is already raining, now), on the right the time the chart ends.
-- **Bottom right: the chart.** One pixel column per slice of time between these two times. The height is the rain at your place, a yellow column means thunderstorm potential nearby. The bright part at the start covers the same hours as the map, the rest of the day is dimmed.
+- **Bottom right: the chart.** One pixel column per slice of time between these two times. The height is the rain at your place, a yellow column means thunderstorm potential nearby. A white line runs along with the radar and shows which moment it is at.
 
 The app **only joins the rotation when rain is expected** before the end of your day (20:00 by default). On dry days you never see it.
 
@@ -18,7 +18,7 @@ The app **only joins the rotation when rain is expected** before the end of your
 
 1. Install the script and open its settings.
 2. Enter your **latitude and longitude** (decimal degrees, e.g. from a map app). The default is the centre of Germany.
-3. Optional: adjust the map radius, the map hours, the rain threshold and the end of your day.
+3. Optional: adjust the map radius, the rain threshold, the end of your day and the animation length.
 
 ### Optional integrations
 

@@ -1,17 +1,16 @@
 # @name    Imber
-# @desc    Should I take rain gear today? LEFT: a round map of the area around you (you are the centre between the four grey dots). Each cell shows the rain total for the next hours from the start time, black = dry, brighter blue = more rain, a yellow dot = thunderstorm potential. TOP RIGHT: the time the rain starts (if it is already raining, now) and the time the chart ends, to the quarter hour. BELOW: a bar chart between these two times, one pixel column per slice of time, height = rain at your location, yellow = thunderstorm potential. The bright part at the start covers the same hours as the map, the rest is dimmed. The chart runs until the end of your day, and always at least over the map hours. The app only joins the rotation when rain is expected before the end of your day. Data: Open-Meteo (CC BY 4.0), DWD ICON-D2 model, so it works for Germany and its neighbours.
+# @desc    Should I take rain gear today? LEFT: an animated rain radar of the area around you (you are the centre between the four grey dots). It plays the forecast hour by hour from the start time to the end of the chart: black = dry, brighter blue = more rain, a yellow dot = thunderstorm potential. TOP RIGHT: the time the rain starts (if it is already raining, now) and the time the chart ends, to the quarter hour. BELOW: a bar chart between these two times, one pixel column per slice of time, height = rain at your location, yellow = thunderstorm potential. A white line runs along the chart and shows which moment the radar is at. The app only joins the rotation when rain is expected before the end of your day. Data: Open-Meteo (CC BY 4.0), DWD ICON-D2 model, so it works for Germany and its neighbours.
 # @author  exradice
-# @version 3.0.2
+# @version 4.0.0
 # @display 52x16
 # @config lat             text   "Latitude"                 default="51.1634" group="Location" help="Your location in decimal degrees, e.g. 51.1634. The centre of the map."
 # @config lon             text   "Longitude"                default="10.4477"  group="Location" help="Your location in decimal degrees, e.g. 10.4477."
 # @config radius          number "Map radius"               default=20 min=5 max=50 unit=km group="Location" help="How far the round map reaches from the centre. One cell is a third of this."
-# @config window          number "Map hours"                default=3 min=1 max=6 unit=h group="Forecast" help="The map sums up the rain over this many hours, starting at the time shown top left of the chart."
 # @config threshold       number "Rain from"                default=0.2 min=0.1 max=2 step=0.1 unit=mm/h group="Forecast" help="Less rain counts as dry. Raise it if light drizzle should not count."
-# @config day_end         number "End of day"               default=20 min=12 max=24 unit=h group="Forecast" help="The chart ends at this hour, or later if the map hours reach further. Rain that starts later does not bring the app into the rotation."
+# @config day_end         number "End of day"               default=20 min=12 max=24 unit=h group="Forecast" help="The radar and the chart end at this hour, but always cover at least 3 hours. Rain that starts later does not bring the app into the rotation."
 # @config interval        number "Update every"             default=15 min=5 max=60 unit=min group="Forecast" help="How often the forecast is fetched. ICON-D2 is updated every hour."
-# @config map_full        number "Map full colour at"       default=5 min=1 max=30 unit=mm group="Display" help="Rain total of a map cell that gets the brightest blue."
-# @config bar_full        number "Bar full height at"       default=4 min=1 max=20 unit=mm/h group="Display" help="Rain rate that fills a bar to the top."
+# @config anim_seconds    number "Animation length"         default=6 min=3 max=20 unit=s group="Display" help="How long one run of the radar takes, from the start time to the end of the chart. The app stays on screen for one run."
+# @config bar_full        number "Heavy rain at"            default=4 min=1 max=20 unit=mm/h group="Display" help="Rain rate that gets the brightest blue on the radar and fills a bar to the top."
 # @config storm_full      number "Storm full colour at"     default=10 min=1 max=50 unit=J/kg group="Display" help="Lightning potential index (LPI) that gets the brightest yellow. It shows how likely and strong lightning is, it is not a probability."
 # @config color_rain      color  "Rain colour"              default=#60C8FF group="Display"
 # @config color_text      color  "Text colour"              default=#4FA8FF group="Display"
@@ -46,8 +45,11 @@ class Imber
   var active      # rain expected and the app may join the rotation
   var indicator   # last indicator state sent
   var stamp       # minute of the last evaluation, -1 = new data
-  var map_colors  # colour per map cell
-  var map_storm   # storm colour per map cell, 0 = none
+  var frames      # radar: [middle of the hour, colours, storm colours] per hour, seconds UTC
+  var anim_a      # radar and chart run from anim_a to anim_b, seconds UTC
+  var anim_b
+  var anim_ms     # length of one radar run
+  var anim_t0     # now_ms() when the app came on screen
   var bars        # [height, colour] per pixel column of the chart
   var label_start
   var label_end
@@ -76,8 +78,11 @@ class Imber
     self.active = false
     self.indicator = nil
     self.stamp = -1
-    self.map_colors = []
-    self.map_storm = []
+    self.frames = []
+    self.anim_a = 0
+    self.anim_b = 0
+    self.anim_ms = 6000
+    self.anim_t0 = 0
     self.bars = []
     self.label_start = ""
     self.label_end = ""
@@ -219,39 +224,36 @@ class Imber
     return [h['time'], h['precipitation'], h['lightning_potential'], 3600]
   end
 
-  # map: rain total and storm per cell over n hours from hourly index first
-  def build_map(first, n)
+  # radar: one picture per hour that touches a..b, rain rate and storm per cell
+  def build_frames(a, b)
     var rain_color = self.cfg("color_rain", 0x60C8FF)
-    var full = self.number("map_full", 5)
-    var colors = []
-    var storm = []
-    for p: self.data
-      var h = p.find('hourly')
-      var rain = h['precipitation']
-      var lpis = h['lightning_potential']
-      var codes = h['weather_code']
-      var total = 0.0
-      var lpi = 0.0
-      var coded = false
-      for i: first .. first + n - 1
-        if i < size(rain)
-          total += self.val(rain[i])
-          if self.val(lpis[i]) > lpi lpi = self.val(lpis[i]) end
-          if codes[i] != nil && int(codes[i]) >= 95 coded = true end
+    var full = self.number("bar_full", 4)
+    var hours = self.data[self.centre].find('hourly')['time']
+    var frames = []
+    for k: 0 .. size(hours) - 1
+      var t = int(hours[k])
+      if t - 3600 < b && t > a
+        var colors = []
+        var storm = []
+        for p: self.data
+          var h = p.find('hourly')
+          # an hourly value is the rain of the hour before its timestamp, so mm = mm/h
+          var rate = self.val(h['precipitation'][k])
+          var code = h['weather_code'][k]
+          # square root, so that little rain is still visible
+          var f = math.sqrt(rate / full)
+          if f > 1.0 f = 1.0 end
+          colors.push(rate < 0.05 ? 0 : self.dim(rain_color, int(f * 100)))
+          storm.push(self.storm_color(self.val(h['lightning_potential'][k]), code != nil && int(code) >= 95))
         end
+        frames.push([t - 1800, colors, storm])
       end
-      # square root, so that little rain is still visible
-      var f = math.sqrt(total / full)
-      if f > 1.0 f = 1.0 end
-      colors.push(total < 0.05 ? 0 : self.dim(rain_color, int(f * 100)))
-      storm.push(self.storm_color(lpi, coded))
     end
-    self.map_colors = colors
-    self.map_storm = storm
+    self.frames = frames
   end
 
-  # chart: 36 pixel columns from a to b (seconds UTC), bright until bright_end
-  def build_bars(a, b, bright_end)
+  # chart: 36 pixel columns from a to b (seconds UTC)
+  def build_bars(a, b)
     var rain_color = self.cfg("color_rain", 0x60C8FF)
     var full = self.number("bar_full", 4)
     var threshold = self.number("threshold", 0.2)
@@ -308,8 +310,6 @@ class Imber
       if rate >= 0.05 && bh < 1 bh = 1 end
       var storm = self.storm_color(lpi, coded)
       var color = storm != 0 ? storm : (rate >= threshold ? rain_color : self.dim(rain_color, 40))
-      # after the map hours the chart is dimmed
-      if ca >= bright_end color = self.dim(color, 55) end
       bars.push([bh, color])
     end
     self.bars = bars
@@ -340,11 +340,9 @@ class Imber
     var rain_today = false
     if now_s - self.fetched <= 3 * 3600
       try
-        var hours = self.data[self.centre].find('hourly')['time']
         var threshold = self.number("threshold", 0.2)
         var since_midnight = hour() * 3600 + minute() * 60 + second()
         var day_end = now_s - since_midnight + int(self.number("day_end", 20)) * 3600
-        var window_s = int(self.number("window", 3)) * 3600
         # offset of local time to UTC, for the labels
         var offset = since_midnight - now_s % 86400
         if offset < -43200 offset += 86400 end
@@ -367,16 +365,14 @@ class Imber
         # already raining: start now; no rain: start now as well, for a look with "Show"
         var a = rain_today && start > now_s ? start : now_s - now_s % 900
         var b = day_end
-        if b < a + window_s b = a + window_s end
+        if b < a + 3 * 3600 b = a + 3 * 3600 end
 
-        # the map uses the hourly values from the hour that contains the start
-        var first = -1
-        for i: 0 .. size(hours) - 1
-          if first < 0 && int(hours[i]) > a first = i end
-        end
-        if first >= 0
-          self.build_map(first, int(self.number("window", 3)))
-          self.build_bars(a, b, a + window_s)
+        self.build_frames(a, b)
+        if size(self.frames) > 0
+          self.build_bars(a, b)
+          self.anim_a = a
+          self.anim_b = b
+          self.anim_ms = int(self.number("anim_seconds", 6) * 1000)
           self.label_start = self.clock(a, offset)
           self.label_end = self.clock(b, offset)
           if rain_today
@@ -406,20 +402,52 @@ class Imber
     return self.active
   end
 
+  # every appearance starts the radar from the beginning
+  def on_show()
+    self.anim_t0 = now_ms()
+  end
+
+  # stay on screen for one run plus the pause at its end
+  def duration()
+    return self.anim_ms + 1000
+  end
+
   def draw()
     clear()
-    if size(self.map_colors) == 0
+    if size(self.frames) == 0
       text((width() - text_ink_width("no data")) / 2, 10, "no data", 0x808080)
       return
     end
 
+    # where the radar is: one run, then a second standing still at the end
+    var e = (now_ms() - self.anim_t0) % (self.anim_ms + 1000)
+    var p = e >= self.anim_ms ? 1.0 : real(e) / self.anim_ms
+    var t = self.anim_a + (self.anim_b - self.anim_a) * p
+
+    # the two hourly pictures around t, blended for a smooth motion
+    var n = size(self.frames)
+    var j = 0
+    while j + 1 < n && self.frames[j + 1][0] <= t j += 1 end
+    var k = j + 1 < n ? j + 1 : j
+    var f = 0.0
+    if k != j && t > self.frames[j][0]
+      f = (t - self.frames[j][0]) / (self.frames[k][0] - self.frames[j][0])
+      if f > 1.0 f = 1.0 end
+    end
+    var c1 = self.frames[j][1]
+    var c2 = self.frames[k][1]
+    var storm = self.frames[f < 0.5 ? j : k][2]
+
     # map 14 x 14 pixels, cells 2 x 2, one row from the top
+    var dry = 0x0C0C14
     for i: 0 .. size(self.cells) - 1
       var c = self.cells[i]
       var x = (c[0] + 3) * 2
       var y = 1 + (c[1] + 3) * 2
-      rect_fill(x, y, 2, 2, self.map_colors[i] != 0 ? self.map_colors[i] : 0x0C0C14)
-      if self.map_storm[i] != 0 pixel(x + 1, y, self.map_storm[i]) end
+      var a = c1[i] != 0 ? c1[i] : dry
+      var b = c2[i] != 0 ? c2[i] : dry
+      rect_fill(x, y, 2, 2, a == b ? a : self.mix(a, b, f))
+      if storm[i] != 0 pixel(x + 1, y, storm[i]) end
     end
     # your location: four grey dots at the corners of the centre cell
     pixel(5, 6, 0x707070)
@@ -440,12 +468,17 @@ class Imber
 
     # one bar per pixel column, rows 8 to 15
     for i: 0 .. size(self.bars) - 1
-      var b = self.bars[i]
-      if b[0] > 0
-        rect_fill(x0 + i, 16 - b[0], 1, b[0], b[1])
+      var bar = self.bars[i]
+      if bar[0] > 0
+        rect_fill(x0 + i, 16 - bar[0], 1, bar[0], bar[1])
       else
         pixel(x0 + i, 15, 0x101018)
       end
+    end
+    # the white line: the moment the radar shows
+    var cols = size(self.bars)
+    if cols > 0
+      rect_fill(x0 + int(p * (cols - 1) + 0.5), 8, 1, 8, 0xFFFFFF)
     end
   end
 end

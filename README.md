@@ -14,21 +14,23 @@ weather report but a decision aid for the commute and the day.
 
 ```
 ┌──────────────┬─────────────────────────────────────┐
-│   rain map   │  7:15 ───────────────────── 20:00   │  start of the rain, end of the chart
-│  (round, 14  │                                     │
-│   × 14 px)   │  ▂▃▅▇▆▄▃▂▁   ▁▂▂▁                   │  rain at your place over time
+│  rain radar  │  7:15 ───────────────────── 20:00   │  start of the rain, end of the chart
+│ (animated,   │           │                         │
+│  14 × 14 px) │  ▂▃▅▇▆▄▃▂▁│  ▁▂▂▁                   │  rain at your place, white line = radar time
 └──────────────┴─────────────────────────────────────┘
 ```
 
-- **Left: the rain map.** A round map of the area around you, 20 km in every direction by
-  default. You are in the middle, between the four grey dots. Each cell shows the rain total of
-  the next 3 hours from the start time: black is dry, the brighter the blue, the more rain. A
-  yellow dot marks thunderstorm potential; the brighter, the stronger.
+- **Left: the rain radar.** A round map of the area around you, 20 km in every direction by
+  default. You are in the middle, between the four grey dots. It plays the forecast hour by hour,
+  from the start time to the end of the chart, so you see the rain move across your area and
+  reach you (or pass by). Black is dry, the brighter the blue, the more rain per hour. A yellow
+  dot marks thunderstorm potential; the brighter, the stronger. One run takes 6 seconds, then the
+  picture stands still for a second.
 - **Top right: the time window.** On the left the time the rain starts at your place (to the
   quarter hour; if it is already raining, now), on the right the time the chart ends.
 - **Bottom right: the chart.** One pixel column per slice of time between these two times. The
-  height is the rain at your place; a yellow column means thunderstorm potential nearby. The
-  bright part at the start covers the same hours as the map, the rest of the day is dimmed.
+  height is the rain at your place; a yellow column means thunderstorm potential nearby. A
+  **white line** runs along with the radar and shows which moment the radar is showing.
 
 Imber **only joins the rotation when rain is expected** before the end of your day (20:00 by
 default). On dry days you never see it.
@@ -50,7 +52,8 @@ No Home Assistant, no account and no API key needed.
 2. **Enter your location.** *Apps* tab → gear icon of Imber → **Latitude** and **Longitude** in
    decimal degrees, for example `52.5200` and `13.4050`. A map app shows them when you tap and
    hold a place. The default is the centre of Germany.
-3. **Optional:** adjust the map radius, the map hours, the rain threshold and the end of your day.
+3. **Optional:** adjust the map radius, the rain threshold, the end of your day and the animation
+   length.
 
 The first forecast arrives within a minute. If rain is coming today, Imber joins the rotation.
 
@@ -62,12 +65,11 @@ In the clock's web interface, *Apps* tab, gear icon of Imber:
 |---|---|---|---|
 | Location | Latitude, Longitude | centre of Germany | Your place, the centre of the map |
 | Location | Map radius | 20 km | How far the round map reaches; one cell is a third of it |
-| Forecast | Map hours | 3 h | The map sums up the rain over this many hours from the start time |
 | Forecast | Rain from | 0.2 mm/h | Less counts as dry; raise it if light drizzle should not count |
-| Forecast | End of day | 20 h | The chart ends here (or later, if the map hours reach further). Rain after this time does not bring Imber into the rotation |
+| Forecast | End of day | 20 h | Radar and chart end here, but always cover at least 3 hours. Rain after this time does not bring Imber into the rotation |
 | Forecast | Update every | 15 min | How often the forecast is fetched; ICON-D2 is updated every hour |
-| Display | Map full colour at | 5 mm | Rain total of a map cell that gets the brightest blue |
-| Display | Bar full height at | 4 mm/h | Rain rate that fills a bar to the top |
+| Display | Animation length | 6 s | One run of the radar; Imber stays on screen for one run plus a second |
+| Display | Heavy rain at | 4 mm/h | Rain rate that gets the brightest blue on the radar and fills a bar to the top |
 | Display | Storm full colour at | 10 J/kg | Lightning potential (LPI) that gets the brightest yellow |
 | Display | Rain colour, Text colour | blue | Colours of the map, chart and times |
 | Integration | Show only when (MQTT topic) | *(empty)* | See below |
