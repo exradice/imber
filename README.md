@@ -6,7 +6,7 @@ weather report but a decision aid for the commute and the day.
 
 *Imber* is Latin for "downpour".
 
-<!-- Demo: docs/imber.gif -->
+![Imber on an AWTRIX clock: a cold front crosses the radar](docs/imber.gif)
 
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/exradice)
 
@@ -14,7 +14,7 @@ weather report but a decision aid for the commute and the day.
 
 ```
 ┌──────────────┬─────────────────────────────────────┐
-│  rain radar  │  7:15 ───────────────────── 20:00   │  start of the rain, end of the chart
+│  rain radar  │  7:15 ───────────────────── 20:00   │  radar time (from the start of the rain), end
 │ (animated,   │           │                         │
 │  14 × 14 px) │  ▂▃▅▇▆▄▃▂▁│  ▁▂▂▁                   │  rain at your place, white line = radar time
 └──────────────┴─────────────────────────────────────┘
@@ -23,14 +23,18 @@ weather report but a decision aid for the commute and the day.
 - **Left: the rain radar.** A round map of the area around you, 20 km in every direction by
   default. You are in the middle, between the four grey dots. It plays the forecast hour by hour,
   from the start time to the end of the chart, so you see the rain move across your area and
-  reach you (or pass by). Black is dry, the brighter the blue, the more rain per hour. A yellow
-  dot marks thunderstorm potential; the brighter, the stronger. One run takes 6 seconds, then the
-  picture stands still for a second.
-- **Top right: the time window.** On the left the time the rain starts at your place (to the
-  quarter hour; if it is already raining, now), on the right the time the chart ends.
+  reach you (or pass by). Black is dry, the brighter the blue, the more rain per hour; heavy rain
+  turns dark purple. A yellow dot marks thunderstorm potential; the brighter, the stronger. By
+  default one run fills the app time of your rotation (*App duration* in the clock's settings),
+  the last second standing still.
+- **Top right: the time window.** On the left, in white, the time the radar is showing, to the
+  quarter hour. Each run starts at the time the rain starts at your place (if it is already
+  raining, now), so that is the first time you read. On the right the time the chart ends.
 - **Bottom right: the chart.** One pixel column per slice of time between these two times. The
   height is the rain at your place; a yellow column means thunderstorm potential nearby. A
   **white line** runs along with the radar and shows which moment the radar is showing.
+
+![One run of Imber while a cold front passes, as five moments](docs/imber-front.png)
 
 Imber **only joins the rotation when rain is expected** before the end of your day (20:00 by
 default). On dry days you never see it.
@@ -68,10 +72,11 @@ In the clock's web interface, *Apps* tab, gear icon of Imber:
 | Forecast | Rain from | 0.2 mm/h | Less counts as dry; raise it if light drizzle should not count |
 | Forecast | End of day | 20 h | Radar and chart end here, but always cover at least 3 hours. Rain after this time does not bring Imber into the rotation |
 | Forecast | Update every | 15 min | How often the forecast is fetched; ICON-D2 is updated every hour |
-| Display | Animation length | 6 s | One run of the radar; Imber stays on screen for one run plus a second |
-| Display | Heavy rain at | 4 mm/h | Rain rate that gets the brightest blue on the radar and fills a bar to the top |
+| Display | Animation length | 0 (automatic) | One run of the radar. 0: one run per app time of the rotation; shown outside the rotation (e.g. with *Show*) a run takes 10 s. Any other value: one run takes that long and Imber stays on screen for one run plus a second |
+| Display | Heavy rain at | 4 mm/h | Rain rate that gets the full heavy rain colour and fills a bar to the top; from about a third of it the blue turns towards purple |
 | Display | Storm full colour at | 10 J/kg | Lightning potential (LPI) that gets the brightest yellow |
 | Display | Rain colour, Text colour | blue | Colours of the map, chart and times |
+| Display | Heavy rain colour | dark purple | Heavy rain turns from the rain colour into this colour |
 | Integration | Show only when (MQTT topic) | *(empty)* | See below |
 | Integration | Indicator topic (MQTT) | *(empty)* | See below |
 | Integration | Indicator colour | blue | Colour of that indicator |

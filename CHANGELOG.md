@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.2.0 - 2026-11-15
+
+- **Heavy rain is dark purple.** On the radar and in the chart the blue turns towards purple
+  from about a third of *Heavy rain at*, full purple at that rate. New setting *Heavy rain
+  colour*.
+- Demo pictures for the README and the Hub: `docs/imber.gif` (one run of the radar while a cold
+  front passes) and `docs/imber-front.png` (the same run as five moments). They are made with
+  `tools/render_demo.py` from example data.
+
+## 4.1.0 - 2026-11-11
+
+- The time on the top left now runs along with the radar (white, to the quarter hour). Each run
+  still starts at the time the rain starts.
+- *Animation length* defaults to 0 = automatic: one run of the radar per app time of the
+  rotation (*App duration* in the clock's settings). Shown outside the rotation, e.g. with
+  *Show*, a run takes 10 s. A value above 0 works as before.
+
 ## 4.0.0 - 2026-11-10
 
 - **Animated rain radar.** The map no longer sums up the next hours; it plays the forecast hour

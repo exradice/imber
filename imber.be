@@ -1,7 +1,7 @@
 # @name    Imber
-# @desc    Should I take rain gear today? LEFT: an animated rain radar of the area around you (you are the centre between the four grey dots). It plays the forecast hour by hour from the start time to the end of the chart: black = dry, brighter blue = more rain, a yellow dot = thunderstorm potential. TOP RIGHT: the time the rain starts (if it is already raining, now) and the time the chart ends, to the quarter hour. BELOW: a bar chart between these two times, one pixel column per slice of time, height = rain at your location, yellow = thunderstorm potential. A white line runs along the chart and shows which moment the radar is at. The app only joins the rotation when rain is expected before the end of your day. Data: Open-Meteo (CC BY 4.0), DWD ICON-D2 model, so it works for Germany and its neighbours.
+# @desc    Should I take rain gear today? LEFT: an animated rain radar of the area around you (you are the centre between the four grey dots). It plays the forecast hour by hour from the start time to the end of the chart: black = dry, brighter blue = more rain, dark purple = heavy rain, a yellow dot = thunderstorm potential. TOP RIGHT: the time the radar shows, running along with it (each run starts at the time the rain starts; if it is already raining, now), and the time the chart ends, to the quarter hour. BELOW: a bar chart between these two times, one pixel column per slice of time, height = rain at your location, yellow = thunderstorm potential. A white line runs along the chart and shows which moment the radar is at. The app only joins the rotation when rain is expected before the end of your day. Data: Open-Meteo (CC BY 4.0), DWD ICON-D2 model, so it works for Germany and its neighbours.
 # @author  exradice
-# @version 4.0.0
+# @version 4.2.0
 # @display 52x16
 # @config lat             text   "Latitude"                 default="51.1634" group="Location" help="Your location in decimal degrees, e.g. 51.1634. The centre of the map."
 # @config lon             text   "Longitude"                default="10.4477"  group="Location" help="Your location in decimal degrees, e.g. 10.4477."
@@ -9,10 +9,11 @@
 # @config threshold       number "Rain from"                default=0.2 min=0.1 max=2 step=0.1 unit=mm/h group="Forecast" help="Less rain counts as dry. Raise it if light drizzle should not count."
 # @config day_end         number "End of day"               default=20 min=12 max=24 unit=h group="Forecast" help="The radar and the chart end at this hour, but always cover at least 3 hours. Rain that starts later does not bring the app into the rotation."
 # @config interval        number "Update every"             default=15 min=5 max=60 unit=min group="Forecast" help="How often the forecast is fetched. ICON-D2 is updated every hour."
-# @config anim_seconds    number "Animation length"         default=6 min=3 max=20 unit=s group="Display" help="How long one run of the radar takes, from the start time to the end of the chart. The app stays on screen for one run."
-# @config bar_full        number "Heavy rain at"            default=4 min=1 max=20 unit=mm/h group="Display" help="Rain rate that gets the brightest blue on the radar and fills a bar to the top."
+# @config anim_seconds    number "Animation length"         default=0 min=0 max=60 unit=s group="Display" help="How long one run of the radar takes, from the start time to the end of the chart. 0 = automatic: one run per app time of the rotation (Settings, App duration). Shown outside the rotation, e.g. with Show, a run takes 10 s. Any other value: one run takes that long and the app stays on screen for one run."
+# @config bar_full        number "Heavy rain at"            default=4 min=1 max=20 unit=mm/h group="Display" help="Rain rate that gets the full heavy rain colour (dark purple) on the radar and fills a bar to the top. From about a third of it the blue turns towards purple."
 # @config storm_full      number "Storm full colour at"     default=10 min=1 max=50 unit=J/kg group="Display" help="Lightning potential index (LPI) that gets the brightest yellow. It shows how likely and strong lightning is, it is not a probability."
 # @config color_rain      color  "Rain colour"              default=#60C8FF group="Display"
+# @config color_heavy     color  "Heavy rain colour"        default=#7A28E0 group="Display" help="Heavy rain turns from the rain colour into this colour, on the radar and in the chart."
 # @config color_text      color  "Text colour"              default=#4FA8FF group="Display"
 # @config gate_topic      text   "Show only when (MQTT topic)" default="" group="Integration" help="Optional. The app only joins the rotation while this topic says on (also true or 1). Leave empty to show it whenever rain is expected."
 # @config indicator_topic text   "Indicator topic (MQTT)"   default="" group="Integration" help="Optional, e.g. awtrix/cmd/indicators/3. Lights an indicator while rain is expected today. Leave empty for none."
@@ -50,9 +51,12 @@ class Imber
   var anim_b
   var anim_ms     # length of one radar run
   var anim_t0     # now_ms() when the app came on screen
+  var turn_ms     # now_ms() when the rotation last gave the app a turn
   var bars        # [height, colour] per pixel column of the chart
-  var label_start
   var label_end
+  var offset      # local time minus UTC, seconds
+  var now_label   # label of the time the radar shows, and its quarter hour
+  var now_q
   var color_text
 
   def init()
@@ -81,11 +85,14 @@ class Imber
     self.frames = []
     self.anim_a = 0
     self.anim_b = 0
-    self.anim_ms = 6000
+    self.anim_ms = 10000
     self.anim_t0 = 0
+    self.turn_ms = -100000
     self.bars = []
-    self.label_start = ""
     self.label_end = ""
+    self.offset = 0
+    self.now_label = ""
+    self.now_q = -1
     self.color_text = 0x4FA8FF
   end
 
@@ -199,6 +206,18 @@ class Imber
     return (r << 16) | (g << 8) | b
   end
 
+  # colour of a rain rate: dark to bright rain colour, then towards the heavy rain colour;
+  # square root, so that little rain is still visible
+  def rain_shade(rate, min_percent)
+    var f = math.sqrt(rate / self.number("bar_full", 4))
+    if f > 1.0 f = 1.0 end
+    if f >= 0.6
+      return self.mix(self.cfg("color_rain", 0x60C8FF), self.cfg("color_heavy", 0x7A28E0), (f - 0.6) / 0.4)
+    end
+    var pc = int(f / 0.6 * 100)
+    return self.dim(self.cfg("color_rain", 0x60C8FF), pc < min_percent ? min_percent : pc)
+  end
+
   # dark to bright yellow by lightning potential, 0 = none
   def storm_color(lpi, coded)
     var g = lpi / self.number("storm_full", 10)
@@ -226,8 +245,6 @@ class Imber
 
   # radar: one picture per hour that touches a..b, rain rate and storm per cell
   def build_frames(a, b)
-    var rain_color = self.cfg("color_rain", 0x60C8FF)
-    var full = self.number("bar_full", 4)
     var hours = self.data[self.centre].find('hourly')['time']
     var frames = []
     for k: 0 .. size(hours) - 1
@@ -240,10 +257,7 @@ class Imber
           # an hourly value is the rain of the hour before its timestamp, so mm = mm/h
           var rate = self.val(h['precipitation'][k])
           var code = h['weather_code'][k]
-          # square root, so that little rain is still visible
-          var f = math.sqrt(rate / full)
-          if f > 1.0 f = 1.0 end
-          colors.push(rate < 0.05 ? 0 : self.dim(rain_color, int(f * 100)))
+          colors.push(rate < 0.05 ? 0 : self.rain_shade(rate, 8))
           storm.push(self.storm_color(self.val(h['lightning_potential'][k]), code != nil && int(code) >= 95))
         end
         frames.push([t - 1800, colors, storm])
@@ -309,7 +323,7 @@ class Imber
       if bh > 8 bh = 8 end
       if rate >= 0.05 && bh < 1 bh = 1 end
       var storm = self.storm_color(lpi, coded)
-      var color = storm != 0 ? storm : (rate >= threshold ? rain_color : self.dim(rain_color, 40))
+      var color = storm != 0 ? storm : (rate >= threshold ? self.rain_shade(rate, 100) : self.dim(rain_color, 40))
       bars.push([bh, color])
     end
     self.bars = bars
@@ -372,9 +386,9 @@ class Imber
           self.build_bars(a, b)
           self.anim_a = a
           self.anim_b = b
-          self.anim_ms = int(self.number("anim_seconds", 6) * 1000)
-          self.label_start = self.clock(a, offset)
           self.label_end = self.clock(b, offset)
+          self.offset = offset
+          self.now_q = -1
           if rain_today
             new_active = size(str(self.cfg("gate_topic", ""))) == 0 || self.gate != false
           end
@@ -402,14 +416,34 @@ class Imber
     return self.active
   end
 
-  # every appearance starts the radar from the beginning
-  def on_show()
-    self.anim_t0 = now_ms()
+  # length of one run: the setting, or automatic (0): the app time of the rotation minus
+  # the pause at the end; outside a rotation turn (Show) or without that setting 10 s
+  def anim_length(in_turn)
+    var s = self.number("anim_seconds", 0)
+    if s > 0 return int(s * 1000) end
+    if in_turn
+      var d = nil
+      try d = settings.get("appDurationMs") except .. end
+      if d != nil && real(d) >= 3000 return int(real(d)) - 1000 end
+    end
+    return 10000
   end
 
-  # stay on screen for one run plus the pause at its end
+  # called when the rotation reaches the app: with a set length stay on screen for one run
+  # plus the pause at its end, automatic keeps the app time of the rotation (0)
   def duration()
-    return self.anim_ms + 1000
+    self.turn_ms = now_ms()
+    self.anim_ms = self.anim_length(true)
+    return self.number("anim_seconds", 0) > 0 ? self.anim_ms + 1000 : 0
+  end
+
+  # every appearance starts the radar from the beginning; without a rotation turn just
+  # before (Show), automatic falls back to the default length
+  def on_show()
+    self.anim_t0 = now_ms()
+    if self.anim_t0 - self.turn_ms > 3000
+      self.anim_ms = self.anim_length(false)
+    end
   end
 
   def draw()
@@ -455,11 +489,17 @@ class Imber
     pixel(5, 9, 0x707070)
     pixel(8, 9, 0x707070)
 
-    # start on the left, end of the chart on the right, a dash between if it fits
+    # the time the radar shows on the left (to the quarter hour, it starts at the start
+    # time), end of the chart on the right, a dash between if it fits
+    var q = int(t) / 900
+    if q != self.now_q
+      self.now_q = q
+      self.now_label = self.clock(q * 900, self.offset)
+    end
     var x0 = 16
-    var w_start = text_ink_width(self.label_start)
+    var w_start = text_ink_width(self.now_label)
     var w_end = text_ink_width(self.label_end)
-    text(x0, 6, self.label_start, self.color_text)
+    text(x0, 6, self.now_label, 0xFFFFFF)
     text(width() - w_end, 6, self.label_end, self.color_text)
     var space = width() - w_end - (x0 + w_start)
     if space >= 5

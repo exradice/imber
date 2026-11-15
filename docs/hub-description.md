@@ -8,8 +8,8 @@
 
 ### How to read it
 
-- **Left: the rain radar.** A round map of the area around you, 20 km in every direction by default. You are in the middle, between the four grey dots. It plays the forecast hour by hour, so you see the rain move across your area: black is dry, the brighter the blue, the more rain. A yellow dot marks thunderstorm potential, the brighter, the stronger.
-- **Top right: the time window.** On the left the time the rain starts at your place (to the quarter hour; if it is already raining, now), on the right the time the chart ends.
+- **Left: the rain radar.** A round map of the area around you, 20 km in every direction by default. You are in the middle, between the four grey dots. It plays the forecast hour by hour, so you see the rain move across your area: black is dry, the brighter the blue, the more rain, heavy rain is dark purple. A yellow dot marks thunderstorm potential, the brighter, the stronger.
+- **Top right: the time window.** On the left, in white, the time the radar is showing, to the quarter hour. Each run starts at the time the rain starts at your place (if it is already raining, now). On the right the time the chart ends.
 - **Bottom right: the chart.** One pixel column per slice of time between these two times. The height is the rain at your place, a yellow column means thunderstorm potential nearby. A white line runs along with the radar and shows which moment it is at.
 
 The app **only joins the rotation when rain is expected** before the end of your day (20:00 by default). On dry days you never see it.
