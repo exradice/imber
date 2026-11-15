@@ -8,6 +8,8 @@ weather report but a decision aid for the commute and the day.
 
 ![Imber on an AWTRIX clock: a cold front crosses the radar](docs/imber.gif)
 
+![One run of Imber while a cold front passes, as five moments](docs/imber-front.png)
+
 [![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/exradice)
 
 ## How to read it
@@ -33,8 +35,6 @@ weather report but a decision aid for the commute and the day.
 - **Bottom right: the chart.** One pixel column per slice of time between these two times. The
   height is the rain at your place; a yellow column means thunderstorm potential nearby. A
   **white line** runs along with the radar and shows which moment the radar is showing.
-
-![One run of Imber while a cold front passes, as five moments](docs/imber-front.png)
 
 Imber **only joins the rotation when rain is expected** before the end of your day (20:00 by
 default). On dry days you never see it.
